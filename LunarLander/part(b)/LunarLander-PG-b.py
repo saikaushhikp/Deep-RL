@@ -182,7 +182,7 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
 
     env.close()
    
-    k = 10
+    k = 100
     running_avg = np.convolve(all_returns, np.ones(k)/k, mode='valid')
     plt.figure(figsize=(8, 4))
     plt.plot(all_returns, label="All Returns", alpha=0.5)
