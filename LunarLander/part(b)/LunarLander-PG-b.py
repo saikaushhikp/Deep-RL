@@ -63,8 +63,27 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
     print(f"\nTraining {env_name} | γ={gamma} | lr={lr} | batch={batch_size} | device={device}")
 
     all_returns = []
+    best_return = float('-inf')
+    best_policy_state = None
 
     for it in range(iterations):
+        # Evaluate current best policy
+        with torch.no_grad():
+            eval_obs = get_obs(env.reset())
+            eval_rewards = []
+            eval_done = False
+            while not eval_done:
+                eval_obs_tensor = torch.tensor(eval_obs, dtype=torch.float32, device=device).unsqueeze(0)
+                eval_probs = policy(eval_obs_tensor)
+                # Use best action (no sampling)
+                eval_action = torch.argmax(eval_probs)
+                eval_next_obs, eval_reward, eval_done, _ = step_env(env, eval_action.item())
+                eval_rewards.append(eval_reward)
+                eval_obs = get_obs(eval_next_obs)
+            eval_return = sum(eval_rewards)
+            print(f"Iter {it+1:4d}/{iterations} | Best Policy Return: {eval_return:8.2f}")
+
+        # Collect training data with exploration
         batch_obs, batch_acts, batch_weights = [], [], []
         ep_returns = []
         log_probs = []
@@ -80,6 +99,7 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
                 probs = policy(obs_tensor)
                 dist = Categorical(probs)
                 action = dist.sample()
+
 
                 next_obs, reward, done, _ = step_env(env, action.item())
                 if reward_scale != 1.0:
@@ -114,13 +134,16 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
         log_probs_tensor = torch.stack(log_probs).to(device)
         advantages = torch.tensor(batch_weights, dtype=torch.float32, device=device)
 
+        # Ensure dimensions match
+        advantages = advantages.reshape(-1)  # Flatten to 1D
+        log_probs_tensor = log_probs_tensor.reshape(-1)  # Flatten to 1D
+
         # Baseline + normalization
         if advantage_norm:
-            advantages -= advantages.mean()
-            advantages /= (advantages.std(unbiased=False) + 1e-8)
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        # Policy gradient loss
-        loss = (-(log_probs_tensor * advantages)).mean()
+
+        loss = -(log_probs_tensor * advantages).mean()
 
         optimizer.zero_grad()
         loss.backward()
@@ -133,23 +156,50 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
 
         print(f"Iter {it+1:4d}/{iterations} | AvgReturn: {avg_return:8.2f} | Loss: {loss:.4f}")
 
+        # Evaluate current policy
+        with torch.no_grad():
+            eval_obs = get_obs(env.reset())
+            eval_rewards = []
+            eval_done = False
+            while not eval_done:
+                eval_obs_tensor = torch.tensor(eval_obs, dtype=torch.float32, device=device).unsqueeze(0)
+                eval_probs = policy(eval_obs_tensor)
+                eval_action = torch.argmax(eval_probs)
+                eval_next_obs, eval_reward, eval_done, _ = step_env(env, eval_action.item())
+                eval_rewards.append(eval_reward)
+                eval_obs = get_obs(eval_next_obs)
+            current_eval_return = sum(eval_rewards)
+
+            # Update best policy if current one is better
+            if current_eval_return > best_return:
+                best_return = current_eval_return
+                best_policy_state = policy.state_dict().copy()
+                print(f"New best policy found. Return: {best_return:8.2f}")
+            else:
+                # Load best policy for next iteration
+                policy.load_state_dict(best_policy_state)
+                print(f"Reverting to best policy (Return: {best_return:8.2f})")
+
     env.close()
+   
+    k = 10
+    running_avg = np.convolve(all_returns, np.ones(k)/k, mode='valid')
     plt.figure(figsize=(8, 4))
-    plt.plot(all_returns)
+    plt.plot(all_returns, label="All Returns", alpha=0.5)
+    plt.plot(np.arange(k-1, len(all_returns)), running_avg, label=f"Running Average (k={k})", color='r', linewidth=2)
     plt.title(f"{fname}")
     plt.xlabel("Iteration")
     plt.ylabel("Average Return")
-    # plt.yscale('log')
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
-    
-    plt.savefig(fname)
+    plt.savefig(fname + ".png")
     print(f"Plot saved as {fname}\n")
     return all_returns
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--environment", type=str, default="CartPole-v1")
+    parser.add_argument("--environment", type=str, default="LunarLander-v3")
     parser.add_argument("--iterations", type=int, default=300)
     parser.add_argument("--batch_size", type=int, default=8000)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -169,7 +219,7 @@ if __name__ == "__main__":
         clip_tuple = (lo, hi)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    fname = f"{args.environment}_PG_iters{args.iterations}_bs{args.batch_size}_g_lr_{'rtg' if args.reward_to_go else 'tot'}_{'advnorm' if args.advantage_norm else 'noadv'}_.png"
+    fname = f"{args.environment}_PG_iters{args.iterations}_bs{args.batch_size}_g_lr_{'rtg' if args.reward_to_go else 'tot'}_{'advnorm' if args.advantage_norm else 'noadv'}_"
     run_training(
         env_name=args.environment,
         iterations=args.iterations,

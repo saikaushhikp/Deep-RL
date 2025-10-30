@@ -174,23 +174,26 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
             if current_eval_return > best_return:
                 best_return = current_eval_return
                 best_policy_state = policy.state_dict().copy()
-                print(f"New best policy found! Return: {best_return:8.2f}")
+                print(f"New best policy found. Return: {best_return:8.2f}")
             else:
                 # Load best policy for next iteration
                 policy.load_state_dict(best_policy_state)
                 print(f"Reverting to best policy (Return: {best_return:8.2f})")
 
     env.close()
+   
+    k = 50
+    running_avg = np.convolve(all_returns, np.ones(k)/k, mode='valid')
     plt.figure(figsize=(8, 4))
-    plt.plot(all_returns)
+    plt.plot(all_returns, label="All Returns", alpha=0.5)
+    plt.plot(np.arange(k-1, len(all_returns)), running_avg, label=f"Running Average (k={k})", color='r', linewidth=2)
     plt.title(f"{fname}")
     plt.xlabel("Iteration")
     plt.ylabel("Average Return")
-    # plt.yscale('log')
     plt.grid(True)
+    plt.legend()
     plt.tight_layout()
-    
-    plt.savefig(fname+".png")
+    plt.savefig(fname + ".png")
     print(f"Plot saved as {fname}\n")
     return all_returns
 

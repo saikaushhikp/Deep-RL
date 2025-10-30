@@ -182,7 +182,7 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
 
     env.close()
    
-    k = 10
+    k = 100
     running_avg = np.convolve(all_returns, np.ones(k)/k, mode='valid')
     plt.figure(figsize=(8, 4))
     plt.plot(all_returns, label="All Returns", alpha=0.5)
@@ -199,7 +199,7 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--environment", type=str, default="CartPole-v1")
+    parser.add_argument("--environment", type=str, default="LunarLander-v3")
     parser.add_argument("--iterations", type=int, default=300)
     parser.add_argument("--batch_size", type=int, default=8000)
     parser.add_argument("--lr", type=float, default=1e-3)

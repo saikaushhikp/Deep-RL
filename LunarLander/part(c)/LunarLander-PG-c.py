@@ -13,18 +13,18 @@ import sys
 
 # Fixed settings
 environment = "CartPole-v1"
-iterations = 1000
+iterations = 2000
 learning_rate = 1e-3
 gamma = 0.99
 
 # Batch sizes to compare
-batch_sizes = [32, 320, 800, 1000]
+batch_sizes = [40, 400, 4000]
 
 # Store results
 batch_rewards = {}
 
 for b in batch_sizes:
-    script_path = os.path.join(os.path.dirname(__file__), "CartPole-PG-b.py")
+    script_path = os.path.join(os.path.dirname(__file__), "LunarLander-PG-b.py")
     try:
         result = subprocess.run(
             [
