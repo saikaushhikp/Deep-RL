@@ -45,20 +45,3 @@ for b in batch_sizes:
         ],
         capture_output=True, text=True
     )
-
-#     Suppose your training script prints "Mean rewards per iteration: [...]"
-#     Extract and parse that list (you can modify question3b.py to save or print it)
-#     rewards = eval(result.stdout.split("Mean rewards per iteration: ")[-1])
-#     batch_rewards[b] = rewards
-
-# # Plot comparison
-# plt.figure(figsize=(10, 6))
-# for b, rewards in batch_rewards.items():
-#     plt.plot(rewards, label=f'Batch Size = {b}')
-# plt.title(f'Impact of Batch Size on Policy Gradient ({environment})')
-# plt.xlabel('Iteration')
-# plt.ylabel('Average Return')
-# plt.legend()
-# plt.grid()
-# # plt.savefig(f'{environment}_batch_comparison.png')
-# plt.show()

@@ -13,12 +13,12 @@ import sys
 
 # Fixed settings
 environment = "CartPole-v1"
-iterations = 500
-learning_rate = 1e-4
+iterations = 100
+learning_rate = 1e-3
 gamma = 0.99
 
 # Batch sizes to compare
-batch_sizes = [8, 16, 32, 64]
+batch_sizes = [32, 320, 800, 1000, 10000]
 
 # Store results
 batch_rewards = {}
@@ -55,21 +55,3 @@ for b in batch_sizes[0:2]:
         if e.stderr:
             print(e.stderr)
         continue
-
-    # Suppose your training script prints "Mean rewards per iteration: [...]"
-    # Extract and parse that list (you can modify question3b.py to save or print it)
-    # rewards = eval(result.stdout.split("Mean rewards per iteration: ")[-1])
-    # batch_rewards[b] = rewards
-
-# # Plot comparison
-# plt.figure(figsize=(10, 6))
-# for b, rewards in batch_rewards.items():
-#     plt.plot(rewards, label=f'Batch Size = {b}')
-
-# plt.title(f'Impact of Batch Size on Policy Gradient ({environment})')
-# plt.xlabel('Iteration')
-# plt.ylabel('Average Return')
-# plt.legend()
-# plt.grid()
-# # plt.savefig(f'{environment}_batch_comparison.png')
-# plt.show()
