@@ -1,8 +1,10 @@
+import os
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import gymnasium as gym
+import ale_py
 from collections import deque
 import random
 import matplotlib.pyplot as plt
@@ -17,7 +19,7 @@ torch.manual_seed(SEED)
 
 # Hyperparameters (from DQN paper)
 # For FULL CONVERGENCE on Pong, use these values:
-LEARNING_RATE = 0.00025
+LEARNING_RATE = 0.0001
 GAMMA = 0.99  # Discount factor
 EPSILON_START = 1.0
 EPSILON_END = 0.1
@@ -28,7 +30,7 @@ TARGET_UPDATE_FREQ = 10000  # Update target network every N steps
 FRAME_STACK = 4  # Stack 4 frames as per paper
 LEARNING_STARTS = 50000  # Start learning after N steps (can use 10000 for faster start)
 SAVE_FREQ = 250000  # Save model every N steps
-TOTAL_TRAINING_STEPS = 5000000  # Train for 5M steps for full convergence (10M for paper baseline)
+TOTAL_TRAINING_STEPS = 4000000  # Train for 5M steps for full convergence (10M for paper baseline)
 
 # Frame preprocessing parameters
 FRAME_WIDTH = 84
@@ -252,7 +254,7 @@ class DQNAgent:
         return checkpoint['step']
 
 
-def train_dqn(total_steps=5000000, max_steps_per_episode=10000, save_model=True):
+def train_dqn(total_steps=4000000, max_steps_per_episode=10000, save_model=True):
     """
     Train DQN agent on Pong-v5
     
@@ -272,20 +274,41 @@ def train_dqn(total_steps=5000000, max_steps_per_episode=10000, save_model=True)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     
+    # agent = DQNAgent(num_actions, device)
+    # preprocessor = FramePreprocessor(FRAME_WIDTH, FRAME_HEIGHT)
+    # frame_stack = FrameStack(FRAME_STACK)
+    # # Training metrics
+    # episode_rewards = []
+    # episode_lengths = []
+    # losses = []
+    # mean_rewards = []
+    # best_mean_reward = -float('inf')
+    # global_step = 0
+    # episode = 0
+
     agent = DQNAgent(num_actions, device)
+    
+    # Check for existing checkpoint
+    checkpoint_path = 'dqn_pong_step_.pth'
+    if os.path.exists(checkpoint_path):
+        print(f"Loading checkpoint from {checkpoint_path}")
+        global_step = agent.load_checkpoint(checkpoint_path)
+        print(f"Resuming training from step {global_step:,}")
+    else:
+        print("No checkpoint found. Starting training from scratch.")
+        global_step = 0
+        
     preprocessor = FramePreprocessor(FRAME_WIDTH, FRAME_HEIGHT)
     frame_stack = FrameStack(FRAME_STACK)
-    
     # Training metrics
     episode_rewards = []
     episode_lengths = []
     losses = []
     mean_rewards = []
     best_mean_reward = -float('inf')
-    
-    global_step = 0
     episode = 0
     
+
     print("Starting training...")
     print(f"Total training steps: {total_steps:,}")
     print(f"Learning starts at step: {LEARNING_STARTS:,}")
@@ -338,13 +361,13 @@ def train_dqn(total_steps=5000000, max_steps_per_episode=10000, save_model=True)
                 # Update target network
                 if global_step % TARGET_UPDATE_FREQ == 0:
                     agent.update_target_network()
-                    print(f"  → Updated target network at step {global_step:,}")
+                    print(f"---> Updated target network at step {global_step:,}")
                 
                 # Save model checkpoint
                 if save_model and global_step % SAVE_FREQ == 0:
-                    checkpoint_path = f'dqn_pong_step_{global_step}.pth'
+                    checkpoint_path = f'dqn_pong_step_.pth'
                     agent.save_checkpoint(checkpoint_path, global_step)
-                    print(f"  → Model saved: {checkpoint_path}")
+                    print(f"---> Model saved: {checkpoint_path}")
             
             if done:
                 break
@@ -377,7 +400,7 @@ def train_dqn(total_steps=5000000, max_steps_per_episode=10000, save_model=True)
                   f"Loss: {avg_loss:.4f}")
             
             if len(episode_rewards) >= 100:
-                print(f"  → Mean Reward (100 ep): {mean_rewards[-1]:.2f} | "
+                print(f"---> Mean Reward (100 ep): {mean_rewards[-1]:.2f} | "
                       f"Best Mean: {best_mean_reward:.2f}")
     
     env.close()
@@ -386,7 +409,7 @@ def train_dqn(total_steps=5000000, max_steps_per_episode=10000, save_model=True)
     if save_model:
         final_path = 'dqn_pong_final.pth'
         agent.save_checkpoint(final_path, global_step)
-        print(f"\n💾 Final model saved: {final_path}")
+        print(f"\n Final model saved: {final_path}")
     
     return {
         'episode_rewards': episode_rewards,
@@ -437,9 +460,9 @@ def plot_learning_curves(results, n_episodes=100):
         ax1.axhline(y=best_mean_reward, color='green', linestyle='--', 
                    linewidth=2, label=f'Best Mean Reward: {best_mean_reward:.2f}')
     
-    ax1.set_xlabel('Time Steps (×1000)', fontsize=12)
+    ax1.set_xlabel('Time Steps (x 1000)', fontsize=12)
     ax1.set_ylabel('Reward', fontsize=12)
-    ax1.set_title('DQN Training Performance on Pong-v5', fontsize=14, fontweight='bold')
+    ax1.set_title('DQN Training Performance on Pong-v5', fontsize=14)
     ax1.legend(loc='lower right')
     ax1.grid(True, alpha=0.3)
     
@@ -451,16 +474,16 @@ def plot_learning_curves(results, n_episodes=100):
     if results['losses']:
         loss_steps = np.linspace(0, steps_per_episode[-1], len(results['losses']))
         ax2.plot(loss_steps, results['losses'], alpha=0.6, color='orange')
-        ax2.set_xlabel('Time Steps (×1000)', fontsize=12)
+        ax2.set_xlabel('Time Steps (x 1000)', fontsize=12)
         ax2.set_ylabel('Loss', fontsize=12)
-        ax2.set_title('Training Loss', fontsize=14, fontweight='bold')
+        ax2.set_title('Training Loss', fontsize=14)
         ax2.grid(True, alpha=0.3)
         ax2.ticklabel_format(axis='x', style='scientific', scilimits=(0,0))
     
     plt.tight_layout()
     plt.savefig('dqn_pong_learning_curves.png', dpi=300, bbox_inches='tight')
     print("\nLearning curves saved as 'dqn_pong_learning_curves.png'")
-    plt.show()
+    # plt.show()
 
 
 def evaluate_agent(agent, num_episodes=10):
@@ -506,21 +529,21 @@ if __name__ == "__main__":
     print("DQN Training on Pong-v5 (Following Original Paper)")
     print("=" * 70)
     
-    print("\n📊 TRAINING CONFIGURATIONS:")
+    print("\n TRAINING CONFIGURATIONS:")
     print("-" * 70)
-    print("🔧 QUICK TEST (to verify setup works):")
+    print(" QUICK TEST (to verify setup works):")
     print("   - total_steps = 100,000 (5-10 minutes)")
     print("   - Won't converge but you'll see learning start")
     print()
-    print("🎯 MODERATE TRAINING (see significant improvement):")
+    print("MODERATE TRAINING (see significant improvement):")
     print("   - total_steps = 1,000,000 (1-2 hours)")
     print("   - Agent will learn to hit ball consistently")
     print()
-    print("🏆 FULL CONVERGENCE (near-optimal performance):")
+    print("FULL CONVERGENCE (near-optimal performance):")
     print("   - total_steps = 5,000,000 (8-12 hours on GPU)")
     print("   - Should reach mean reward of +18 to +21")
     print()
-    print("📚 PAPER BASELINE (original DQN paper):")
+    print(" PAPER BASELINE (original DQN paper):")
     print("   - total_steps = 10,000,000+ (20+ hours)")
     print("   - Matches original Nature DQN results")
     print("-" * 70)
@@ -532,36 +555,36 @@ if __name__ == "__main__":
     # training_steps = 100000
     
     # MODERATE TRAINING (1-2 hours)
-    # training_steps = 1000000
+    training_steps = 2000000
     
     # FULL CONVERGENCE (8-12 hours) - RECOMMENDED
-    training_steps = 5000000
+    # training_steps = 5000000
     
     # PAPER BASELINE (20+ hours)
     # training_steps = 10000000
     
-    print(f"\n▶️  Starting training with {training_steps:,} steps...")
-    print(f"⏱️  Estimated time: {training_steps / 1000000 * 2:.1f}-{training_steps / 1000000 * 2.5:.1f} hours on GPU")
+    print(f"\nStarting training with {training_steps:,} steps...")
+    print(f"Estimated time: {training_steps / 1000000 * 2:.1f}-{training_steps / 1000000 * 2.5:.1f} hours on GPU")
     print("=" * 70 + "\n")
     
     # Train agent
     results = train_dqn(total_steps=training_steps, max_steps_per_episode=10000)
     
     print("\n" + "=" * 70)
-    print("✅ Training Complete!")
+    print(" Training Complete!")
     print("=" * 70)
-    print(f"🏆 Best Mean Reward (100 ep): {results['best_mean_reward']:.2f}")
-    print(f"📈 Total Episodes: {len(results['episode_rewards'])}")
+    print(f"Best Mean Reward (100 ep): {results['best_mean_reward']:.2f}")
+    print(f"Total Episodes: {len(results['episode_rewards'])}")
     
     # Plot learning curves
     plot_learning_curves(results, n_episodes=100)
     
     # Evaluate agent
     print("\n" + "=" * 70)
-    print("🎮 Evaluating Trained Agent")
+    print("Evaluating Trained Agent")
     print("=" * 70)
     eval_rewards = evaluate_agent(results['agent'], num_episodes=10)
     
     print("\n" + "=" * 70)
-    print("✨ Done!")
+    print("Done!")
     print("=" * 70)

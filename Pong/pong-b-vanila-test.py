@@ -332,7 +332,7 @@ def train_dqn(num_episodes=2000, max_steps_per_episode=10000):
                   f"Steps: {global_step} | "
                   f"Avg Reward (10 ep): {avg_reward:.2f} | "
                   f"Epsilon: {agent.epsilon:.3f} | "
-                  f"Loss: {avg_loss:.4f}")
+                  f"Avg Loss (10 ep): {avg_loss:.4f}")
             
             if len(episode_rewards) >= 100:
                 print(f"  Mean Reward (100 ep): {mean_rewards[-1]:.2f} | "
@@ -411,7 +411,7 @@ def plot_learning_curves(results, n_episodes=100):
     plt.tight_layout()
     plt.savefig('dqn_pong_learning_curves.png', dpi=300, bbox_inches='tight')
     print("\nLearning curves saved as 'dqn_pong_learning_curves.png'")
-    plt.show()
+    # plt.show()
 
 
 def evaluate_agent(agent, num_episodes=10):
