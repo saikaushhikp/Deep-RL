@@ -9,7 +9,7 @@ print("Observation space:", env.observation_space)
 print("Action space:", env.action_space)
 print("Number of possible actions:", env.action_space.n)
 
-num_episodes = 5
+num_episodes = 15
 episode_rewards = []
 reward_trajectories = []  # store reward progression per episode
 
@@ -45,4 +45,4 @@ plt.legend()
 plt.grid(True, linestyle="--", alpha=0.6)
 plt.tight_layout()
 plt.savefig(f"pong_{num_episodes}_random_agent_rewards.png")
-plt.show()
+# plt.show()
