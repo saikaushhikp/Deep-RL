@@ -34,4 +34,7 @@ The algorithms are tested on multiple OpenAI Gym environments, ranging from simp
 
 > ⚠️ **Note:** Training Pong with DQN can take a long time - up to 2-3 nights on a modest laptop. Plan your experiments accordingly.
 
-
+Clone Repo:  
+```bash
+git clone https://github.com/saikaushhikp/Deep-RL.git
+```
