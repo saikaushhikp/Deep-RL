@@ -1,192 +1,52 @@
-import argparse, os, time, random
+import os
 import gymnasium as gym
-import numpy as np
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.optim as optim
-from torch.distributions import Categorical
 import matplotlib.pyplot as plt
+from datetime import datetime
+import argparse
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_dim, act_dim, hidden_sizes=(128, 128)):
-        super().__init__()
-        layers = []
-        prev_dim = obs_dim
-        for h in hidden_sizes:
-            layers += [nn.Linear(prev_dim, h), nn.ReLU()]
-            prev_dim = h
-        layers += [nn.Linear(prev_dim, act_dim), nn.Softmax(dim=-1)]
-        self.net = nn.Sequential(*layers)
+    def __init__(self, state_dim, action_dim, hidden_dim=64):
+        super(Policy, self).__init__()
+        self.network = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+    
+        for layer in self.network:
+            if isinstance(layer, nn.Linear):
+                nn.init.orthogonal_(layer.weight, gain=np.sqrt(2))
+                nn.init.constant_(layer.bias, 0.0)
+    
+    def forward(self, x):
+        return self.network(x)
 
-    def forward(self, obs):
-        return self.net(obs)
-
-
-def discount_cumsum(rewards, gamma):
-    """Compute discounted cumulative rewards."""
-    discounted = np.zeros_like(rewards, dtype=np.float32)
-    running_add = 0
-    for t in reversed(range(len(rewards))):
-        running_add = rewards[t] + gamma * running_add
-        discounted[t] = running_add
-    return list(discounted)
-
-
-def get_obs(obs):
-    return np.array(obs[0] if isinstance(obs, (tuple, list)) else obs)
-
-
-def step_env(env, action):
-    out = env.step(action)
-    if len(out) == 5:
-        obs, reward, term, trunc, info = out
-        done = term or trunc
+def compute_returns(rewards, gamma, reward_to_go=False):
+    """Compute discounted returns."""
+    if reward_to_go:
+        returns = []
+        future_return = 0
+        for r in reversed(rewards):
+            future_return = r + gamma * future_return
+            returns.insert(0, future_return)
+        return returns
     else:
-        obs, reward, done, info = out
-    return obs, reward, done, info
+        total_return = sum([gamma**i * r for i, r in enumerate(rewards)])
+        return [total_return] * len(rewards)
 
-
-def run_training(env_name, iterations, batch_size, lr, gamma,
-                 reward_to_go, advantage_norm, reward_scale,
-                 reward_clip, hidden_dim, device, fname):
-
-
-
-    env = gym.make(env_name)
-    obs_dim = env.observation_space.shape[0]
-    act_dim = env.action_space.n
-
-    policy = Policy(obs_dim, act_dim, hidden_sizes=(hidden_dim, hidden_dim)).to(device)
-    optimizer = optim.Adam(policy.parameters(), lr=lr)
-
-    print(f"\nTraining {env_name} | γ={gamma} | lr={lr} | batch={batch_size} | device={device}")
-
-    all_returns = []
-    best_return = float('-inf')
-    best_policy_state = None
-
-    for it in range(iterations):
-        # Evaluate current best policy
-        with torch.no_grad():
-            eval_obs = get_obs(env.reset())
-            eval_rewards = []
-            eval_done = False
-            while not eval_done:
-                eval_obs_tensor = torch.tensor(eval_obs, dtype=torch.float32, device=device).unsqueeze(0)
-                eval_probs = policy(eval_obs_tensor)
-                # Use best action (no sampling)
-                eval_action = torch.argmax(eval_probs)
-                eval_next_obs, eval_reward, eval_done, _ = step_env(env, eval_action.item())
-                eval_rewards.append(eval_reward)
-                eval_obs = get_obs(eval_next_obs)
-            eval_return = sum(eval_rewards)
-            print(f"Iter {it+1:4d}/{iterations} | Best Policy Return: {eval_return:8.2f}")
-
-        # Collect training data with exploration
-        batch_obs, batch_acts, batch_weights = [], [], []
-        ep_returns = []
-        log_probs = []
-
-        steps_collected = 0
-        while steps_collected < batch_size:
-            obs = get_obs(env.reset())
-            ep_rewards, ep_logps, ep_obs, ep_acts = [], [], [], []
-
-            done = False
-            while not done:
-                obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
-                probs = policy(obs_tensor)
-                dist = Categorical(probs)
-                action = dist.sample()
-
-
-                next_obs, reward, done, _ = step_env(env, action.item())
-                if reward_scale != 1.0:
-                    reward *= reward_scale
-                if reward_clip:
-                    reward = np.clip(reward, reward_clip[0], reward_clip[1])
-
-                ep_obs.append(obs)
-                ep_acts.append(action.item())
-                ep_logps.append(dist.log_prob(action))
-                ep_rewards.append(reward)
-                obs = get_obs(next_obs)
-
-            # Compute returns
-            if reward_to_go:
-                ep_returns = discount_cumsum(ep_rewards, gamma)
-            else:
-                G = sum([gamma**t * r for t, r in enumerate(ep_rewards)])
-                ep_returns = [G for _ in ep_rewards]
-
-            batch_obs += ep_obs
-            batch_acts += ep_acts
-            batch_weights += list(ep_returns)
-            log_probs += ep_logps
-            ep_returns_sum = sum(ep_rewards)
-            ep_returns.append(ep_returns_sum)
-            ep_returns = np.array(ep_returns)
-
-            steps_collected += len(ep_rewards)
-
-        # Convert to tensors
-        log_probs_tensor = torch.stack(log_probs).to(device)
-        advantages = torch.tensor(batch_weights, dtype=torch.float32, device=device)
-
-        # Ensure dimensions match
-        advantages = advantages.reshape(-1)  # Flatten to 1D
-        log_probs_tensor = log_probs_tensor.reshape(-1)  # Flatten to 1D
-
-        # Baseline + normalization
-        if advantage_norm:
-            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-
-
-        loss = -(log_probs_tensor * advantages).mean()
-
-        optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)
-        optimizer.step()
-
-        avg_return = np.mean(ep_returns)
-        all_returns.append(avg_return)
-
-
-        print(f"Iter {it+1:4d}/{iterations} | AvgReturn: {avg_return:8.2f} | Loss: {loss:.4f}")
-
-        # Evaluate current policy
-        with torch.no_grad():
-            eval_obs = get_obs(env.reset())
-            eval_rewards = []
-            eval_done = False
-            while not eval_done:
-                eval_obs_tensor = torch.tensor(eval_obs, dtype=torch.float32, device=device).unsqueeze(0)
-                eval_probs = policy(eval_obs_tensor)
-                eval_action = torch.argmax(eval_probs)
-                eval_next_obs, eval_reward, eval_done, _ = step_env(env, eval_action.item())
-                eval_rewards.append(eval_reward)
-                eval_obs = get_obs(eval_next_obs)
-            current_eval_return = sum(eval_rewards)
-
-            # Update best policy if current one is better
-            if current_eval_return > best_return:
-                best_return = current_eval_return
-                best_policy_state = policy.state_dict().copy()
-                print(f"New best policy found. Return: {best_return:8.2f}")
-            else:
-                # Load best policy for next iteration
-                policy.load_state_dict(best_policy_state)
-                print(f"Reverting to best policy (Return: {best_return:8.2f})")
-
-    env.close()
-   
-    k = 10
-    running_avg = np.convolve(all_returns, np.ones(k)/k, mode='valid')
+def plot_rewards(all_mean_rewards, fname):
+    k = 50
+    running_avg = np.convolve(all_mean_rewards, np.ones(k)/k, mode='valid')
     plt.figure(figsize=(8, 4))
-    plt.plot(all_returns, label="All Returns", alpha=0.5)
-    plt.plot(np.arange(k-1, len(all_returns)), running_avg, label=f"Running Average (k={k})", color='r', linewidth=2)
+    plt.plot(all_mean_rewards, label="All Returns", alpha=0.5)
+    plt.plot(np.arange(k-1, len(all_mean_rewards)), running_avg, label=f"Running Average (k={k})", color='r', linewidth=2)
     plt.title(f"{fname}")
     plt.xlabel("Iteration")
     plt.ylabel("Average Return")
@@ -194,10 +54,83 @@ def run_training(env_name, iterations, batch_size, lr, gamma,
     plt.legend()
     plt.tight_layout()
     plt.savefig(fname + ".png")
-    print(f"Plot saved as {fname}\n")
-    return all_returns
+    print(f"Plot saved as {fname}.png\n")
+    plt.close()
 
-if __name__ == "__main__":
+def pg_training(env_name="CartPole-v1", iterations=100, batch_size=2000,lr=1e-2, gamma=0.99, reward_to_go=True, advantage_norm=True,hidden_dim=128,):
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"PG training on {env_name} | reward_to_go={reward_to_go} advantage_norm={advantage_norm}  | device = {device}")
+    env = gym.make(env_name)
+    state_dim = env.observation_space.shape[0]
+    n_actions = env.action_space.n
+    
+    policy = Policy(state_dim, n_actions, hidden_dim).to(device)
+    optimizer = optim.Adam(policy.parameters(), lr=lr)
+
+    all_mean_rewards = []
+
+    for it in range(iterations):
+        batch_states, batch_actions, batch_weights, batch_episode_rewards = [], [], [], []
+        steps = 0
+
+        # collect trajectories until we reach desired batch size
+        while steps < batch_size:
+            obs, info = env.reset()
+            done = False
+            states, actions, rewards = [], [], []
+            while True:
+                s_t = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+                logits = policy(s_t)
+                dist = torch.distributions.Categorical(logits=logits)
+                action = int(dist.sample().item())
+
+                next_obs, reward, terminated, truncated, info = env.step(action)
+                done_flag = terminated or truncated
+
+                states.append(obs)
+                actions.append(action)
+                rewards.append(reward)
+                obs = next_obs
+
+                if done_flag:
+                    break
+
+            steps += len(states)
+            batch_states += states
+            batch_actions += actions
+            batch_episode_rewards.append(sum(rewards))
+            batch_weights += list(compute_returns(rewards, gamma, reward_to_go))
+
+        # prepare tensors
+        batch_states_t = torch.tensor(np.array(batch_states), dtype=torch.float32, device=device)
+        batch_actions_t = torch.tensor(batch_actions, dtype=torch.int64, device=device)
+        batch_weights_t = torch.tensor(batch_weights, dtype=torch.float32, device=device)
+
+        # advantage normalization
+        if advantage_norm:
+            mean = batch_weights_t.mean()
+            std = batch_weights_t.std() + 1e-8
+            batch_weights_t = (batch_weights_t - mean) / std
+
+        logits = policy(batch_states_t)
+        dists = torch.distributions.Categorical(logits=logits)
+        logp = dists.log_prob(batch_actions_t)
+        loss = -(logp * batch_weights_t).mean()
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        mean_reward = np.mean(batch_episode_rewards)
+        all_mean_rewards.append(mean_reward)
+        # mean20 = np.mean(all_mean_rewards[-20:])
+        print(f"Iteration {it+1}/{iterations} | Mean Reward: {mean_reward:.2f} | Episodes: {len(batch_episode_rewards)}")
+
+    return all_mean_rewards
+
+
+if __name__ == "__main__":    
     parser = argparse.ArgumentParser()
     parser.add_argument("--environment", type=str, default="CartPole-v1")
     parser.add_argument("--iterations", type=int, default=300)
@@ -212,15 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_dim", type=int, default=128)
     args = parser.parse_args()
 
-    clip_tuple = None
-    if args.reward_clip_min is not None or args.reward_clip_max is not None:
-        lo = -np.inf if args.reward_clip_min is None else args.reward_clip_min
-        hi = np.inf if args.reward_clip_max is None else args.reward_clip_max
-        clip_tuple = (lo, hi)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    fname = f"{args.environment}_PG_iters{args.iterations}_bs{args.batch_size}_g_lr_{'rtg' if args.reward_to_go else 'tot'}_{'advnorm' if args.advantage_norm else 'noadv'}_"
-    run_training(
+    all_mean_rewards = pg_training(
         env_name=args.environment,
         iterations=args.iterations,
         batch_size=args.batch_size,
@@ -228,9 +153,8 @@ if __name__ == "__main__":
         gamma=args.gamma,
         reward_to_go=args.reward_to_go,
         advantage_norm=args.advantage_norm,
-        reward_scale=args.reward_scale,
-        reward_clip=clip_tuple,
-        hidden_dim=args.hidden_dim,
-        device=device,
-        fname=fname
+        hidden_dim=args.hidden_dim
     )
+
+    fname = f"{args.environment}_PG_iters{args.iterations}_bs{args.batch_size}_g_lr_{'rtg' if args.reward_to_go else 'tot'}_{'advnorm' if args.advantage_norm else 'noadv'}_"
+    plot_rewards(all_mean_rewards, fname)

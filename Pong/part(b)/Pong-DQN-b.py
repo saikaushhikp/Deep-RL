@@ -1,230 +1,520 @@
-import gymnasium as gym
-import ale_py
+import os
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
-import random
-import cv2
-import matplotlib.pyplot as plt
+import gymnasium as gym
+import ale_py
 from collections import deque
-import os
+import random
+import matplotlib.pyplot as plt
+from PIL import Image
+import cv2
+from datetime import datetime
 
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+
+# Hyperparameters (from DQN paper)
+LEARNING_RATE = 0.0001
+GAMMA = 0.99  # Discount factor
+EPSILON_START = 1.0
+EPSILON_END = 0.1
+EPSILON_DECAY = 1000000  # Steps over which to decay epsilon
 BATCH_SIZE = 32
-GAMMA = 0.99
-EPS_START = 1.0
-EPS_END = 0.01
-EPS_DECAY = 1000000  # Decay over 1M steps
-TARGET_UPDATE = 10000  # Update target network every 10k steps
-MEMORY_SIZE = 100000
-LEARNING_RATE = 0.00025
-NUM_EPISODES = 2500  # Train until ~2-4M steps
-MAX_STEPS_PER_EPISODE = 1500  # Cap episode length
-FRAME_STACK = 4  # Stack 4 frames
-INPUT_SHAPE = (84, 84)  # Downsampled size
+REPLAY_BUFFER_SIZE = 1000000  # Original paper uses 1M (100K for quick testing)
+TARGET_UPDATE_FREQ = 10000  # Update target network every N steps
+FRAME_STACK = 4  # Stack 4 frames as per paper
+LEARNING_STARTS = 50000  # Start learning after N steps (can use 10000 for faster start)
+SAVE_FREQ = 250000  # Save model every N steps
+TOTAL_TRAINING_STEPS = 4000000  # Train for 5M steps for full convergence (10M for paper baseline)
 
-# Preprocessing function
-def preprocess_frame(frame):
+# Frame preprocessing parameters
+FRAME_WIDTH = 84
+FRAME_HEIGHT = 84
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
-    resized = cv2.resize(gray, INPUT_SHAPE, interpolation=cv2.INTER_AREA)
-    return resized.astype(np.float32) / 255.0  # Normalize to [0,1]
+class FramePreprocessor:
+    def __init__(self, width=84, height=84):
+        self.width = width
+        self.height = height
+        
+    def process(self, frame):
+        # Convert to grayscale
+        if len(frame.shape) == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = frame
+            
+        # Resize to 84x84
+        resized = cv2.resize(gray, (self.width, self.height), 
+                           interpolation=cv2.INTER_AREA)
+        
+        # Normalize to [0, 1]
+        normalized = resized.astype(np.float32) / 255.0
+        
+        return normalized
 
-# DQN Network (CNN)
-class DQN(nn.Module):
-    def __init__(self, input_shape, num_actions):
-        super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4)
+
+class FrameStack:    
+    def __init__(self, num_frames=4):
+        self.num_frames = num_frames
+        self.frames = deque(maxlen=num_frames)
+        
+    def reset(self, frame):
+        for _ in range(self.num_frames):
+            self.frames.append(frame)
+        return self.get_state()
+    
+    def update(self, frame):
+        self.frames.append(frame)
+        return self.get_state()
+    
+    def get_state(self):
+        return np.stack(self.frames, axis=0)
+
+
+class ReplayBuffer:
+    
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
+    
+    def push(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
+    
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+        
+        return (
+            np.array(states),
+            np.array(actions),
+            np.array(rewards, dtype=np.float32),
+            np.array(next_states),
+            np.array(dones, dtype=np.float32)
+        )
+    
+    def __len__(self):
+        return len(self.buffer)
+
+
+class DQNetwork(nn.Module):
+    
+    def __init__(self, num_actions, frame_stack=4):
+        super(DQNetwork, self).__init__()
+        
+        # Convolutional layers as per DQN paper
+        self.conv1 = nn.Conv2d(frame_stack, 32, kernel_size=8, stride=4)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=4, stride=2)
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
-        self.fc1 = nn.Linear(64 * 7 * 7, 512)
+        
+        # Calculate size after convolutions
+        # Input: 84x84, after conv1: 20x20, after conv2: 9x9, after conv3: 7x7
+        conv_output_size = 64 * 7 * 7
+        
+        # Fully connected layers
+        self.fc1 = nn.Linear(conv_output_size, 512)
         self.fc2 = nn.Linear(512, num_actions)
-    
+        
     def forward(self, x):
         x = torch.relu(self.conv1(x))
         x = torch.relu(self.conv2(x))
         x = torch.relu(self.conv3(x))
+        
+        # Flatten
         x = x.view(x.size(0), -1)
+        
         x = torch.relu(self.fc1(x))
-        return self.fc2(x)
+        x = self.fc2(x)
+        
+        return x
 
-# Experience Replay
-class ReplayMemory:
-    def __init__(self, capacity):
-        self.memory = deque(maxlen=capacity)
+
+class DQNAgent:
     
-    def push(self, state, action, reward, next_state, done):
-        self.memory.append((state, action, reward, next_state, done))
-    
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-    
-    def __len__(self):
-        return len(self.memory)
-
-# Initialize environment
-env = gym.make('ALE/Pong-v5')
-num_actions = 6 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Initialize networks
-policy_net = DQN((FRAME_STACK, INPUT_SHAPE[0], INPUT_SHAPE[1]), num_actions).to(device)
-target_net = DQN((FRAME_STACK, INPUT_SHAPE[0], INPUT_SHAPE[1]), num_actions).to(device)
-target_net.load_state_dict(policy_net.state_dict())
-target_net.eval()
-
-optimizer = optim.Adam(policy_net.parameters(), lr=LEARNING_RATE)
-memory = ReplayMemory(MEMORY_SIZE)
-
-
-def select_action(state, steps_done):
-    eps_threshold = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
-    if random.random() > eps_threshold:
+    def __init__(self, num_actions, device='cuda' if torch.cuda.is_available() else 'cpu'):
+        self.device = device
+        self.num_actions = num_actions
+        
+        # Q-network and target network
+        self.q_network = DQNetwork(num_actions, FRAME_STACK).to(device)
+        self.target_network = DQNetwork(num_actions, FRAME_STACK).to(device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
+        self.target_network.eval()
+        
+        # Optimizer
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=LEARNING_RATE)
+        
+        # Replay buffer
+        self.replay_buffer = ReplayBuffer(REPLAY_BUFFER_SIZE)
+        
+        # Training stats
+        self.steps = 0
+        self.epsilon = EPSILON_START
+        
+    def select_action(self, state, training=True):
+        """Select action using epsilon-greedy policy"""
+        if training and random.random() < self.epsilon:
+            return random.randrange(self.num_actions)
+        
         with torch.no_grad():
-            return policy_net(state).argmax(dim=1).item()
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+            q_values = self.q_network(state_tensor)
+            return q_values.argmax(1).item()
+    
+    def update_epsilon(self):
+        """Decay epsilon"""
+        self.epsilon = max(
+            EPSILON_END,
+            EPSILON_START - (EPSILON_START - EPSILON_END) * self.steps / EPSILON_DECAY
+        )
+    
+    def train_step(self):
+        """Perform one training step"""
+        if len(self.replay_buffer) < BATCH_SIZE:
+            return None
+        
+        # Sample from replay buffer
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(BATCH_SIZE)
+        
+        # Convert to tensors
+        states = torch.FloatTensor(states).to(self.device)
+        actions = torch.LongTensor(actions).to(self.device)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        next_states = torch.FloatTensor(next_states).to(self.device)
+        dones = torch.FloatTensor(dones).to(self.device)
+        
+        # Compute Q(s, a)
+        q_values = self.q_network(states)
+        q_values = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+        
+        # Compute target Q values
+        with torch.no_grad():
+            next_q_values = self.target_network(next_states)
+            max_next_q_values = next_q_values.max(1)[0]
+            target_q_values = rewards + (1 - dones) * GAMMA * max_next_q_values
+        
+        # Compute loss (Huber loss for stability)
+        loss = nn.SmoothL1Loss()(q_values, target_q_values)
+        
+        # Optimize
+        self.optimizer.zero_grad()
+        loss.backward()
+        # Gradient clipping as per paper
+        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), 10)
+        self.optimizer.step()
+        
+        return loss.item()
+    
+    def update_target_network(self):
+        self.target_network.load_state_dict(self.q_network.state_dict())
+    
+    def save_checkpoint(self, filepath, step):
+        """Save model checkpoint"""
+        torch.save({
+            'step': step,
+            'q_network_state_dict': self.q_network.state_dict(),
+            'target_network_state_dict': self.target_network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon,
+        }, filepath)
+    
+    def load_checkpoint(self, filepath):
+        """Load model checkpoint"""
+        checkpoint = torch.load(filepath, map_location=self.device)
+        self.q_network.load_state_dict(checkpoint['q_network_state_dict'])
+        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.epsilon = checkpoint['epsilon']
+        self.steps = checkpoint['step']
+        return checkpoint['step']
+
+
+def train_dqn(total_steps=4000000, max_steps_per_episode=10000, save_model=True):
+    
+    # Initialize environment
+    env = gym.make('ALE/Pong-v5', render_mode=None)
+    
+    # Get action space size
+    num_actions = env.action_space.n
+    
+    # Initialize components
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print(f"Using device: {device}")
+
+    agent = DQNAgent(num_actions, device)
+    
+    # Check for existing checkpoint
+    checkpoint_path = 'dqn_pong_step_.pth'
+    if os.path.exists(checkpoint_path):
+        print(f"Loading checkpoint from {checkpoint_path}")
+        global_step = agent.load_checkpoint(checkpoint_path)
+        print(f"Resuming training from step {global_step:,}")
     else:
-        return random.choice([0, 2, 3]) 
-
-# Training loop with tracking for visualizations
-steps_done = 0
-episode_rewards = []
-episode_lengths = [] 
-losses = []  
-eps_values = []  
-best_mean_reward = -21.0 #-float('inf')
-
-for episode in range(NUM_EPISODES):
-    obs = env.reset()[0]  
-    state = np.stack([preprocess_frame(obs)] * FRAME_STACK, axis=0)  
-    state = torch.tensor(state, dtype=torch.float32, device=device).unsqueeze(0)
-    total_reward = 0
-    done = False
-    episode_steps = 0
-    episode_loss = 0  # Accumulate loss for this episode
-    
-    while not done and episode_steps < MAX_STEPS_PER_EPISODE:
-        action = select_action(state, steps_done)
-        obs, reward, terminated, truncated, _ = env.step(action)  # Note: step() still returns (obs, reward, done, info)
-        total_reward += reward
-        done  = terminated or truncated
+        print("No checkpoint found. Starting training from scratch.")
+        global_step = 0
         
-        # Preprocess next frame and update state stack
-        next_frame = preprocess_frame(obs)
-        next_state_stack = np.roll(state.squeeze(0).cpu().numpy(), shift=-1, axis=0)
-        next_state_stack[-1] = next_frame
-        next_state = torch.tensor(next_state_stack, dtype=torch.float32, device=device).unsqueeze(0)
+    preprocessor = FramePreprocessor(FRAME_WIDTH, FRAME_HEIGHT)
+    frame_stack = FrameStack(FRAME_STACK)
+    # Training metrics
+    episode_rewards = []
+    episode_lengths = []
+    losses = []
+    mean_rewards = []
+    best_mean_reward = -float('inf')
+    episode = 0
+    
+
+    print("\t\t...Starting training...")
+    print(f"Total training steps: {total_steps:,}")
+    print(f"Learning starts at step: {LEARNING_STARTS:,}")
+    print(f"Epsilon decay over: {EPSILON_DECAY:,} steps")
+    print(f"Target network update frequency: {TARGET_UPDATE_FREQ:,} steps")
+    print(f"Replay buffer size: {REPLAY_BUFFER_SIZE:,}\n")
+    
+    # Training loop - continue until we reach total steps
+    while global_step < total_steps:
+        # Reset environment
+        obs, info = env.reset()
+        processed_frame = preprocessor.process(obs)
+        state = frame_stack.reset(processed_frame)
         
-        # Store in memory
-        memory.push(state, action, reward, next_state, done)
-        state = next_state
-        steps_done += 1
-        episode_steps += 1
+        episode_reward = 0
+        episode_loss = []
         
-        # Train if enough samples
-        if len(memory) >= BATCH_SIZE:
-            transitions = memory.sample(BATCH_SIZE)
-            batch_state, batch_action, batch_reward, batch_next_state, batch_done = zip(*transitions)
+        for step in range(max_steps_per_episode):
+            # Select action
+            action = agent.select_action(state, training=True)
             
-            batch_state = torch.cat(batch_state)
-            batch_action = torch.tensor(batch_action, device=device).unsqueeze(1)
-            batch_reward = torch.tensor(batch_reward, device=device)
-            batch_next_state = torch.cat(batch_next_state)
-            batch_done = torch.tensor(batch_done, dtype=torch.float32, device=device)
+            # Take action in environment
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
             
-            # Compute Q values
-            q_values = policy_net(batch_state).gather(1, batch_action).squeeze(1)
-            next_q_values = target_net(batch_next_state).max(1)[0]
-            expected_q_values = batch_reward + (GAMMA * next_q_values * (1 - batch_done))
+            # Preprocess next frame
+            processed_next_frame = preprocessor.process(next_obs)
+            next_state = frame_stack.update(processed_next_frame)
             
-            # Loss and backprop
-            loss = nn.MSELoss()(q_values, expected_q_values)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            # Clip reward as per DQN paper
+            clipped_reward = np.clip(reward, -1, 1)
             
-            episode_loss += loss.item()  # Accumulate loss
+            # Store transition in replay buffer
+            agent.replay_buffer.push(state, action, clipped_reward, next_state, done)
+            
+            state = next_state
+            episode_reward += reward
+            global_step += 1
+            agent.steps = global_step
+            
+            # Update epsilon
+            agent.update_epsilon()
+            
+            # Train agent
+            if global_step >= LEARNING_STARTS:
+                loss = agent.train_step()
+                if loss is not None:
+                    episode_loss.append(loss)
+                
+                # Update target network
+                if global_step % TARGET_UPDATE_FREQ == 0:
+                    agent.update_target_network()
+                    print(f"---> Updated target network at step {global_step:,}")
+                
+                # Save model checkpoint
+                if save_model and global_step % SAVE_FREQ == 0:
+                    checkpoint_path = f'dqn_pong_step_.pth'
+                    agent.save_checkpoint(checkpoint_path, global_step)
+                    print(f"---> Model saved: {checkpoint_path}")
+            
+            if done:
+                break
+        
+        # Record metrics
+        episode_rewards.append(episode_reward)
+        episode_lengths.append(step + 1)
+        if episode_loss:
+            losses.append(np.mean(episode_loss))
+        
+        episode += 1
+        
+        # Calculate moving average (last 100 episodes)
+        if len(episode_rewards) >= 100:
+            mean_reward = np.mean(episode_rewards[-100:])
+            mean_rewards.append(mean_reward)
+            
+            if mean_reward > best_mean_reward:
+                best_mean_reward = mean_reward
+        
+        # Print progress every 10 episodes
+        if episode % 10 == 0:
+            avg_reward = np.mean(episode_rewards[-10:]) if episode_rewards else 0
+            avg_loss = np.mean(losses[-10:]) if losses else 0
+            progress_pct = (global_step / total_steps) * 100
+            
+            print(f"Episode {episode} | Step {global_step:,}/{total_steps:,} ({progress_pct:.1f}%) | "
+                  f"Avg Reward (10 ep): {avg_reward:.2f} | "
+                  f"epsilon: {agent.epsilon:.3f} | "
+                  f"Loss (10 ep): {avg_loss:.4f}")
+            
+            if len(episode_rewards) >= 100:
+                print(f"---> Mean Reward (100 ep): {mean_rewards[-1]:.2f} | "
+                      f"Best Mean: {best_mean_reward:.2f}")
     
-    episode_rewards.append(total_reward)
-    episode_lengths.append(episode_steps)
-    losses.append(episode_loss / episode_steps if episode_steps > 0 else 0)  # Average loss per step
-    eps_values.append(EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY))  # Current epsilon
+    env.close()
     
-    # Computing mean reward over last 100 episodes
-    if len(episode_rewards) >= 100:
-        mean_reward = np.mean(episode_rewards[-100:])
-        best_mean_reward = max(best_mean_reward, mean_reward)
-        print(f"Episode {episode}, Steps: {steps_done}, Mean Reward (last 100): {mean_reward:.2f}, Best Mean: {best_mean_reward:.2f}")
+    # Save final model
+    if save_model:
+        final_path = 'dqn_pong_final.pth'
+        agent.save_checkpoint(final_path, global_step)
+        print(f"\n Final model saved: {final_path}")
     
-    # Stop if trained enough
-    if steps_done >= 2500000:
-        break
+    return {
+        'episode_rewards': episode_rewards,
+        'episode_lengths': episode_lengths,
+        'losses': losses,
+        'mean_rewards': mean_rewards,
+        'best_mean_reward': best_mean_reward,
+        'agent': agent,
+        'total_steps': global_step
+    }
 
-env.close()
 
-
-# 1. Learning curve
-if len(episode_rewards) >= 100:
-    """This curve shows how the agent's performance improves over time. Initially, rewards are negative, 
-    but they should rise as the agent learns to win points. The best mean reward indicates peak performance. 
-    If it plateaus, it suggests the agent has learned a decent strategy, though further tuning might help."""
+def plot_learning_curves(results, n_episodes=100):
+    """Plot learning curves"""
     
-    mean_rewards = [np.mean(episode_rewards[max(0, i-99):i+1]) for i in range(99, len(episode_rewards))]
-    timesteps = np.arange(100, len(episode_rewards)+1) * 2000  # Approximate steps per episode
+    episode_rewards = results['episode_rewards']
+    mean_rewards = results['mean_rewards']
+    best_mean_reward = results['best_mean_reward']
     
-    plt.figure(figsize=(10, 5))
-    plt.plot(timesteps / 1e6, mean_rewards, label='Mean Reward (last 100 episodes)')
-    plt.axhline(y=best_mean_reward, color='r', linestyle='--', label=f'Best Mean Reward: {best_mean_reward:.2f}')
-    plt.xlabel('Timesteps (Millions)')
-    plt.ylabel('Mean Reward')
-    plt.title('DQN Learning Curve for Pong')
-    plt.legend()
-    plt.grid()
-    plt.savefig('dqn_pong_learning_curve.png')
-    plt.show()
+    # Calculate cumulative steps for x-axis
+    # Approximate steps per episode (varies, but we'll use a running sum)
+    steps_per_episode = []
+    cumulative_steps = 0
+    
+    # Estimate steps (rough approximation for plotting)
+    for i in range(len(episode_rewards)):
+        # Early episodes might be longer, later ones shorter as agent improves
+        estimated_steps = 1000  # Average estimate
+        cumulative_steps += estimated_steps
+        steps_per_episode.append(cumulative_steps)
+    
+    # Create figure with subplots
+    fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+    
+    # Plot 1: Episode rewards and mean rewards
+    ax1 = axes[0]
+    
+    # Plot individual episode rewards (lighter)
+    ax1.plot(steps_per_episode, episode_rewards, color='deepskyblue', label='Episode Reward')
+    
+    # Plot mean n-episode rewards
+    if mean_rewards:
+        mean_steps = steps_per_episode[n_episodes-1:]
+        ax1.plot(mean_steps, mean_rewards, color='red', linewidth=1, 
+                label=f'Mean {n_episodes}-Episode Reward')
+        
+        # Plot best mean reward line
+        ax1.axhline(y=best_mean_reward, color='green', linestyle='--', 
+                   linewidth=2, label=f'Best Mean Reward: {best_mean_reward:.2f}')
+    
+    ax1.set_xlabel('Time Steps (x 1000)', fontsize=12)
+    ax1.set_ylabel('Reward', fontsize=12)
+    ax1.set_title('DQN Training Performance on Pong-v5', fontsize=14)
+    ax1.legend(loc='lower right')
+    ax1.grid(True, alpha=0.3)
+    
+    # Format x-axis to show in thousands
+    ax1.ticklabel_format(axis='x', style='scientific', scilimits=(0,0))
+    
+    # Plot 2: Training loss
+    ax2 = axes[1]
+    if results['losses']:
+        loss_steps = np.linspace(0, steps_per_episode[-1], len(results['losses']))
+        ax2.plot(loss_steps, results['losses'], alpha=0.6, color='orange')
+        ax2.set_xlabel('Time Steps (x 1000)', fontsize=12)
+        ax2.set_ylabel('Loss', fontsize=12)
+        ax2.set_title('Training Loss', fontsize=14)
+        ax2.grid(True, alpha=0.3)
+        ax2.ticklabel_format(axis='x', style='scientific', scilimits=(0,0))
+    
+    plt.tight_layout()
+    plt.savefig('dqn_pong_learning_curves.png', dpi=300, bbox_inches='tight')
+    print("\nLearning curves saved as 'dqn_pong_learning_curves.png'")
+
+
+def evaluate_agent(agent, num_episodes=10):
+    env = gym.make('ALE/Pong-v5', render_mode=None)
+    preprocessor = FramePreprocessor(FRAME_WIDTH, FRAME_HEIGHT)
+    frame_stack = FrameStack(FRAME_STACK)
+
+    eval_rewards = []
+
+    # Ensure evaluation log file exists and write header
+    log_path = 'evaluation.txt'
+    try:
+        with open(log_path, 'a') as logf:
+            logf.write("\n")
+    except Exception:
+        print(f"Warning: could not open {log_path} for writing evaluation logs.")
+
+    for episode in range(num_episodes):
+        obs, info = env.reset()
+        processed_frame = preprocessor.process(obs)
+        state = frame_stack.reset(processed_frame)
+
+        episode_reward = 0
+        done = False
+
+        while not done:
+            action = agent.select_action(state, training=False)
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+
+            processed_next_frame = preprocessor.process(next_obs)
+            state = frame_stack.update(processed_next_frame)
+
+            episode_reward += reward
+
+        eval_rewards.append(episode_reward)
+        line = f"Evaluation Episode {episode + 1}/{num_episodes}: Reward = {episode_reward}\n"
+        print(line.strip())
+        try:
+            with open(log_path, 'a') as logf:
+                logf.write(line)
+        except Exception:
+            pass
+
+    env.close()
+
+    mean_eval_reward = np.mean(eval_rewards)
+    mean_line = f"Mean Evaluation Reward: {mean_eval_reward:.2f}\n"
+    print(f"\n{mean_line.strip()}")
+    try:
+        with open(log_path, 'a') as logf:
+            logf.write(mean_line + "\n")
+    except Exception:
+        pass
+
+    return eval_rewards
+
+
+if __name__ == "__main__":
+    training_steps = 2500000
+    
+    print(f"\nStarting training with {training_steps:,} steps...")
 
     
-
-# 2. Epsilon decay over episodes
-"""Epsilon starts high (1.0) for exploration and decays exponentially to 0.1.
-Early episodes involve more random actions, while later ones rely on learned policies. 
-This balance is key for DQN to avoid getting stuck in suboptimal strategies.
-"""
-plt.figure(figsize=(10, 5))
-plt.plot(range(len(eps_values)), eps_values, color='purple')
-plt.xlabel('Episode')
-plt.ylabel('Epsilon Value')
-plt.title('Epsilon Decay Over Episodes (Exploration vs. Exploitation)')
-plt.grid()
-plt.savefig('dqn_epsilon_decay.png')
-plt.show()
-
-# 3. Training loss over episodes
-"""Loss measures how well the Q-network predicts rewards. It should decrease over time as the network learns accurate Q-values. 
-Spikes might indicate exploration or hard-to-learn states. Converging loss suggests stable learning.
-"""
-plt.figure(figsize=(10, 5))
-plt.plot(range(len(losses)), losses, color='orange')
-plt.xlabel('Episode')
-plt.ylabel('Average Loss per Step')
-plt.title('Training Loss Over Episodes')
-plt.grid()
-plt.savefig('dqn_training_loss.png')
-plt.show()
-
-# 4. Episode lengths over episodes
-"""Episode lengths start long (e.g., 1000+ steps) and may shorten as the agent learns to win faster. 
-In Pong, shorter episodes mean the agent is scoring more efficiently. If lengths increase, it could indicate the agent is struggling.
-"""
-plt.figure(figsize=(10, 5))
-plt.plot(range(len(episode_lengths)), episode_lengths, color='cyan')
-plt.xlabel('Episode')
-plt.ylabel('Episode Length (Steps)')
-plt.title('Episode Lengths Over Episodes')
-plt.grid()
-plt.savefig('dqn_episode_lengths.png')
-plt.show()
-
-# Save the model
-torch.save(policy_net.state_dict(), 'Pong-DQN.pth')
-print("Model saved as 'Pong-DQN.pth'.")
+    # Train agent
+    results = train_dqn(total_steps=training_steps, max_steps_per_episode=10000)
+    print(" Training Complete!")
+    print(f"Best Mean Reward (100 ep): {results['best_mean_reward']:.2f}")
+    print(f"Total Episodes: {len(results['episode_rewards'])}")
+    
+    # Plot learning curves
+    plot_learning_curves(results, n_episodes=100)
+    
+    # Evaluate agent
+    print("\n" + "=" * 70)
+    print("Evaluating Trained Agent")
+    eval_rewards = evaluate_agent(results['agent'], num_episodes=1000)
