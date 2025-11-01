@@ -555,7 +555,7 @@ if __name__ == "__main__":
     # training_steps = 100000
     
     # MODERATE TRAINING (1-2 hours)
-    training_steps = 2000000
+    training_steps = 2500000
     
     # FULL CONVERGENCE (8-12 hours) - RECOMMENDED
     # training_steps = 5000000
