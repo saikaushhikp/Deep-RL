@@ -32,9 +32,13 @@ The algorithms are tested on multiple OpenAI Gym environments, ranging from simp
 | DQN | `CartPole-v1`, `MountainCar-v0`, `Pong-v0` | Simple → Medium |
 | Policy Gradient | `CartPole-v1`, `Acrobot-v1`, `InvertedPendulum-v2` | Simple → Continuous |
 
-> ⚠️ **Note:** Training Pong with DQN can take a long time - up to 2-3 nights on a modest laptop. Plan your experiments accordingly.
+> **Note:** Training Pong with DQN can take a considerable amount of time-up to 2-3 nights on a modest laptop. Plan your experiments accordingly.
 
 Clone Repo:  
 ```bash
 git clone https://github.com/saikaushhikp/Deep-RL.git
+```
+Commands for package-installations(might differ from system to system and python version, so don't hesitate to ask `ChatGPT` for your correct installation method)
+```bash
+# will be adding soon
 ```
