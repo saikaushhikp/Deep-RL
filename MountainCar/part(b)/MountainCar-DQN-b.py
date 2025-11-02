@@ -54,6 +54,7 @@ def train_agent(config):
 
     # Training metrics
     episode_rewards = []
+    episode_losses = []
     exploration_rate = config.epsilon_start
     total_timesteps = 0
 
@@ -66,6 +67,8 @@ def train_agent(config):
         state_tensor = torch.FloatTensor(state_np).unsqueeze(0).to(device)
         episode_reward = 0
         episode_steps = 0
+        episode_loss = 0
+        num_batches = 0
 
         while True:
             if random.random() < exploration_rate:
@@ -110,8 +113,16 @@ def train_agent(config):
                 loss.backward()
                 optimizer.step()
 
+                episode_loss += loss.item()
+                num_batches += 1
+
             if episode_done:
                 break
+
+        if num_batches > 0:
+            episode_losses.append(episode_loss / num_batches)
+        else:
+            episode_losses.append(None) # No loss if no training occurred
 
         if exploration_rate > config.epsilon_min:
             exploration_rate *= config.epsilon_decay_factor
@@ -126,9 +137,7 @@ def train_agent(config):
             print(f"Mean {config.n_mean_episodes}-episode reward: {recent_mean_reward:.2f}")
 
     env.close()
-    return episode_rewards, online_network, device
-
-
+    return episode_rewards, episode_losses, online_network, device
 
 
 def visualize_training_results(config, training_rewards, trained_network, device):
@@ -194,6 +203,23 @@ def visualize_training_results(config, training_rewards, trained_network, device
     plt.close()
     print(f"Visualization saved as {output_filename}")
 
+
+def visualize_loss(config, episode_losses):
+    plt.figure(figsize=(10, 5))
+    # Filter out None values for plotting
+    episodes = [i for i, loss in enumerate(episode_losses) if loss is not None]
+    losses = [loss for loss in episode_losses if loss is not None]
+    
+    plt.plot(episodes, losses)
+    plt.title(f"Training Loss on {config.environment}")
+    plt.xlabel("Episode")
+    plt.ylabel("Loss")
+    plt.grid(True)
+    output_filename = f"{config.environment}_DQN_{config.num_episodes}_episodes_{config.batch_size}batch_loss.png"
+    plt.savefig(output_filename, dpi=200)
+    plt.close()
+    print(f"Loss visualization saved as {output_filename}")
+
 if __name__ == "__main__":
     # Set up command-line argument parser
     parser = argparse.ArgumentParser(description="Deep Q-Learning for Mountain Car Environment")
@@ -215,7 +241,8 @@ if __name__ == "__main__":
     config = parser.parse_args()
 
     # Train the agent
-    training_history, trained_network, device = train_agent(config)
+    training_history, episode_losses, trained_network, device = train_agent(config)
     
     # Visualize and save results
     visualize_training_results(config, training_history, trained_network, device)
+    visualize_loss(config, episode_losses)
