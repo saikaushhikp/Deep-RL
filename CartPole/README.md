@@ -5,7 +5,8 @@ A random agent in the CartPole-v1 Gym environment receives consistently low and 
 ---
 
 ![Random Agent Performance](part(a)/CartPole-v1_500_16_random_agent.png)
-<center>Figure-1: Rewards per episode for a random agent in CartPole-v1 environment over 500
+<center>Figure-1: Rewards per episode for a random agent in CartPole-v1 environment over 500 <br>
+Parameters:500 iterations, 16 timesteps per iteration('batch')
 </center>
 
 ---
@@ -31,7 +32,8 @@ A random agent in the CartPole-v1 Gym environment receives consistently low and 
 ![rTaF](part(b)/CartPole-v1_PG_iters500_bs5000_g_lr_rtg_noadv_.png)
 ![rFaT](part(b)/CartPole-v1_PG_iters500_bs5000_g_lr_tot_advnorm_.png)
 ![rFaF](part(b)/CartPole-v1_PG_iters500_bs5000_g_lr_tot_noadv_.png)
-<center>Figure-2,3,4,5: Average Return over 500 episodes for 5000 as batch size with different combinations of Reward-to-Go and Advantage Normalization
+<center>Figure-2,3,4,5: Average Return over 500 episodes for 5000 as batch size with different combinations of Reward-to-Go and Advantage Normalization <br>
+Parameters : 500 iterations, 5000 timesteps per iteration('batch'), with learningrate = 0.001 , gamma = 0.99, reward_to_go and advantage_norm (booleans)
 </center>
 
 ---
@@ -57,7 +59,8 @@ A random agent in the CartPole-v1 Gym environment receives consistently low and 
 ![bs50](part(c)/CartPole-v1_PG_iters500_bs50_g_lr_rtg_advnorm_.png)
 ![bs500](part(c)/CartPole-v1_PG_iters500_bs500_g_lr_rtg_advnorm_.png)
 ![bs5000](part(c)/CartPole-v1_PG_iters500_bs5000_g_lr_rtg_advnorm_.png)
-<center>Figure-6,7,8: Average Return over 500 episodes for different batch sizes with Reward-to-Go and Advantage Normalization enabled
+<center>Figure-6,7,8: Average Return over 500 episodes for different batch sizes with Reward-to-Go and Advantage Normalization enabled <br>
+Parameters : 500 iterations, leaningrate = 0.001 , gamma = 0.99, reward_to_go and advantage_norm (booleans) , batch sizes 50,500,5000(experimented)
 </center>
 
 ---

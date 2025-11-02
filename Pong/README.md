@@ -10,7 +10,7 @@
 ![5ep Random Agent](part(a)/pong_5_random_agent_rewards.png)
 ![15ep Random Agent](part(a)/pong_15_random_agent_rewards.png)
 
-<center>Figure-1: Rewards obtained by a random agent in Pong over 5(top) and 15(bottom) episodes.</center>
+<center>Figure-1: Rewards obtained by a random agent in Pong over 5(top) and 15(bottom) episodes.(indefinite episode lengths)</center>
 
 ---
 
@@ -48,7 +48,8 @@ Thus the trainined model performed good and can do better for many more training
 ![0.1Msteps DQN Agent](part(b)/dqn_pong_learning_curves_26L.png)
 <center>
 Figure-3: Learning curve of DQN agent trained for an additional 0.1M steps in Pong(after 2.5M steps).  <br>
-Avg-return curve(top), Training loss curve(bottom).
+Avg-return curve(top), Training loss curve(bottom). <br>
+Parameters : (lr, gamma) = (0.0001, 0.99), total training steps = 2.5M steps + ReplyBufferSize = 1M 
 </center>
 
 ---

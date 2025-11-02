@@ -5,7 +5,8 @@ A random agent in LunarLander-v3 consistently receives low, negative rewards wit
 ---
 
 ![Random Agent Performance](part(a)/LunarLander-v3_50_16_random_agent.png)
-<center>Figure-1: Rewards per episode for a random agent in LunarLander-v3 environment over 50 episodes
+<center>Figure-1: Rewards per episode for a random agent in LunarLander-v3 environment over 50 episodes <br>
+Parameters:50 iterations, 16 timesteps per iteration('batch')
 </center>
 
 ---
@@ -30,7 +31,8 @@ A random agent in LunarLander-v3 consistently receives low, negative rewards wit
 ![rTaF](part(b)/LunarLander-v3_PG_iters1200_bs800_g_lr_rtg_noadv_.png)
 ![rFaT](part(b)/LunarLander-v3_PG_iters1200_bs800_g_lr_tot_advnorm_.png)
 ![rFaF](part(b)/LunarLander-v3_PG_iters1200_bs800_g_lr_tot_noadv_.png)
-<center>Figure-2,3,4,5: Average Return over 1200 episodes for 800 as batch size with different combinations of Reward-to-Go and Advantage Normalization
+<center>Figure-2,3,4,5: Average Return over 1200 episodes for 800 as batch size with different combinations of Reward-to-Go and Advantage Normalization <br>
+Parameters : 1200 iterations, 8000 timesteps per iteration('batch'), with learningrate = 0.001 , gamma = 0.99, reward_to_go and advantage_norm (booleans) (experimented)
 </center>
 
 --- 
@@ -53,7 +55,8 @@ A random agent in LunarLander-v3 consistently receives low, negative rewards wit
 ![bs80](part(c)/LunarLander-v3_PG_iters1200_bs80_g_lr_rtg_advnorm_.png)
 ![bs800](part(c)/LunarLander-v3_PG_iters1200_bs800_g_lr_rtg_advnorm_.png)
 ![bs8000](part(c)/LunarLander-v3_PG_iters1200_bs8000_g_lr_rtg_advnorm_.png)
-<center>Figure-6,7,8: Average Return over 1200 episodes for different batch sizes with Reward-to-Go and Advantage Normalization enabled
+<center>Figure-6,7,8: Average Return over 1200 episodes for different batch sizes with Reward-to-Go and Advantage Normalization enabled <br>
+Parameters : 1200 iterations, leaningrate = 0.001 , gamma = 0.99, reward_to_go and advantage_norm (booleans) , batch sizes 80,800,8000(experimented)
 </center>
 
 ---

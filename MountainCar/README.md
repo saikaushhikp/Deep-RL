@@ -5,7 +5,8 @@ A random agent in the MountainCar-v0 environment performs poorly, consistently r
 
 ![Random Agent Performance and Policy Map](part(a)/MountainCar-v0_random_100ep_mean5.png)
 <center>
-Figure-1: Random Agent Performance (left) and its Policy Map (right) for 100 episodes of random actions.
+Figure-1: Random Agent Performance (left) and its Policy Map (right) for 100 episodes of random actions. <br>
+Parameters: 100 episodes , moving average of 5.(5 - mean reward)
 </center>
 
 ---
@@ -24,14 +25,16 @@ The DQN agent successfully learned to solve the MountainCar-v0 environment. This
 
 ![DQN Agent Performance and Policy Map](part(b)/MountainCar-v0_DQN_1000_episodes_64batch.png)
 <center>
-Figure-2: DQN Agent Performance (left) and its Policy Map (right) after training for 1000 episodes with a batch size of 64.
+Figure-2: DQN Agent Performance (left) and its Policy Map (right) after training for 1000 episodes with a batch size of 64. <br>
+Parameters: 1000 episodes , moving average of 50.(50 - mean reward) and 64 batch size(episodes per iteration)
 </center>
 
 ---
 
 ![Agent's Training Loss](part(b)/MountainCar-v0_DQN_1000_episodes_64batch_loss.png)
 <center>
-Figure-3: DQN Agent Training Loss over 1000 episodes with a batch size of 64.
+Figure-3: DQN Agent Training Loss over 1000 episodes with a batch size of 64. <br>
+Parameters: 1000 episodes , moving average of 50.(50 - mean reward) and 64 batch size(episodes per iteration), (lr,gamma) = (0.0005,0.99)
 </center>
 
 ---
@@ -51,7 +54,8 @@ Figure-3: DQN Agent Training Loss over 1000 episodes with a batch size of 64.
 ![](part(c)/MountainCar-v0_DQN_1000_episodes_64batch.png)
 ![](part(c)/MountainCar-v0_DQN_1000_episodes_128batch.png)
 <center>
-Figures 4,5,6,7: DQN Agent Performance for batch sizes of 16, 32, 64, and 128 over 1000 episodes.
+Figures 4,5,6,7: DQN Agent Performance for batch sizes of 16, 32, 64, and 128 over 1000 episodes. <br>
+Parameters: same parameters as the part(b), just experimenting with batch_sizes (16,32,64,128)
 </center>
 
 ---
