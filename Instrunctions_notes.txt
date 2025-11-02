@@ -1,0 +1,8 @@
+All the required implementations have been implemented as per the problem statements in each environment's unique folder.
+
+Their reports are added to the environment's 'README.md' file as well as its overall '.ipynb' file.
+
+The reports contain observations and inferences based on multiple runs of code that have been implemented, also with the result plots.
+
+Just in case the plot images don't get rendered, the images have captions(explaining what the image was) and a section( parts a,b,c) indicating to redirect to the corresponding folder. 
+and find the plots(images) and it's runnable(executable Python) code file.
