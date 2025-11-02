@@ -30,7 +30,7 @@ The algorithms are tested on multiple OpenAI Gym environments, ranging from simp
 | Algorithm | Environment Examples | Complexity |
 |------------|----------------------|-------------|
 | DQN | `CartPole-v1`, `MountainCar-v0`, `Pong-v0` | Simple $\to$ Medium |
-| Policy Gradient | `CartPole-v1`, `Acrobot-v1`, `InvertedPendulum-v2` | Simple $\rarr$ Continuous |
+| Policy Gradient | `CartPole-v1`, `Acrobot-v1`, `InvertedPendulum-v2` | Simple $\to$ Continuous |
 
 > **Note:** Training Pong with DQN can take a considerable amount of time-up to 2-3 nights on a modest laptop. Plan your experiments accordingly.
 
