@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import random
 from itertools import count
-import os
 
 def parse_args():
     p = argparse.ArgumentParser(description="Running with different episodic counts and mean rewards")

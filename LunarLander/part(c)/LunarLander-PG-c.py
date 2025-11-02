@@ -1,24 +1,16 @@
 
 import subprocess
-import matplotlib.pyplot as plt
-import argparse, os, time, random
-import gymnasium as gym
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.distributions import Categorical
-import matplotlib.pyplot as plt
+import os
 import sys
 
 # Fixed settings
-environment = "CartPole-v1"
-iterations = 2000
+environment = "LunarLander-v3"
+iterations = 1200
 learning_rate = 1e-3
 gamma = 0.99
 
 # Batch sizes to compare
-batch_sizes = [40, 400, 4000]
+batch_sizes = [80, 800, 8000]
 
 # Store results
 batch_rewards = {}

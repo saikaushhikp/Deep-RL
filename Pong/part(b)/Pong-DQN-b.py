@@ -8,9 +8,7 @@ import ale_py
 from collections import deque
 import random
 import matplotlib.pyplot as plt
-from PIL import Image
 import cv2
-from datetime import datetime
 
 SEED = 42
 random.seed(SEED)

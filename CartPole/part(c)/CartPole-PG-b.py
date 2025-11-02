@@ -1,11 +1,9 @@
-import os
 import gymnasium as gym
 import torch
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
-from datetime import datetime
 import argparse
 
 
@@ -59,7 +57,7 @@ def plot_rewards(all_mean_rewards, fname):
     print(f"Plot saved as {fname}.png\n")
     plt.close()
 
-def pg_training(env_name="CartPole-v1", iterations=100, batch_size=2000,lr=1e-2, gamma=0.99, reward_to_go=True, advantage_norm=True,hidden_dim=128,):
+def run_training(env_name="CartPole-v1", iterations=100, batch_size=2000,lr=1e-2, gamma=0.99, reward_to_go=True, advantage_norm=True,hidden_dim=128,):
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"PG training on {env_name} | reward_to_go={reward_to_go} advantage_norm={advantage_norm}  | device = {device}")
@@ -126,7 +124,6 @@ def pg_training(env_name="CartPole-v1", iterations=100, batch_size=2000,lr=1e-2,
 
         mean_reward = np.mean(batch_episode_rewards)
         all_mean_rewards.append(mean_reward)
-        # mean20 = np.mean(all_mean_rewards[-20:])
         print(f"Iteration {it+1}/{iterations} | Mean Reward: {mean_reward:.2f} | Episodes: {len(batch_episode_rewards)}")
 
     return all_mean_rewards
@@ -147,7 +144,7 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_dim", type=int, default=128)
     args = parser.parse_args()
 
-    all_mean_rewards = pg_training(
+    all_mean_rewards = run_training(
         env_name=args.environment,
         iterations=args.iterations,
         batch_size=args.batch_size,

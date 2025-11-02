@@ -12,7 +12,6 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import argparse
-import pandas as pd
 
 #################################
 # Argument Parsing
