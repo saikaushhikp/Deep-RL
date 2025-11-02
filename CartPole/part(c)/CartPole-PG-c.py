@@ -5,12 +5,12 @@ import sys
 
 # Fixed settings
 environment = "CartPole-v1"
-iterations = 1000
+iterations = 500
 learning_rate = 1e-3
 gamma = 0.99
 
 # Batch sizes to compare
-batch_sizes = [32, 320, 800, 1000]
+batch_sizes = [50,500,5000]
 
 # Store results
 batch_rewards = {}
