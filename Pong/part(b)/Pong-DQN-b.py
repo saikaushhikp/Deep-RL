@@ -35,6 +35,7 @@ FRAME_HEIGHT = 84
 
 
 class FramePreprocessor:
+
     def __init__(self, width=84, height=84):
         self.width = width
         self.height = height
@@ -47,7 +48,7 @@ class FramePreprocessor:
             gray = frame
             
         # Resize to 84x84
-        resized = cv2.resize(gray, (self.width, self.height), 
+        resized = cv2.resize(gray, (self.width, self.height),
                            interpolation=cv2.INTER_AREA)
         
         # Normalize to [0, 1]
@@ -56,7 +57,8 @@ class FramePreprocessor:
         return normalized
 
 
-class FrameStack:    
+class FrameStack: 
+
     def __init__(self, num_frames=4):
         self.num_frames = num_frames
         self.frames = deque(maxlen=num_frames)
@@ -263,7 +265,6 @@ def train_dqn(total_steps=4000000, max_steps_per_episode=10000, save_model=True)
     mean_rewards = []
     best_mean_reward = -float('inf')
     episode = 0
-    
 
     print("\t\t...Starting training...")
     print(f"Total training steps: {total_steps:,}")
@@ -408,12 +409,12 @@ def plot_learning_curves(results, n_episodes=100):
     
     # Plot mean n-episode rewards
     if mean_rewards:
-        mean_steps = steps_per_episode[n_episodes-1:]
-        ax1.plot(mean_steps, mean_rewards, color='red', linewidth=1, 
+        mean_steps = steps_per_episode[n_episodes - 1:]
+        ax1.plot(mean_steps, mean_rewards, color='red', linewidth=1,
                 label=f'Mean {n_episodes}-Episode Reward')
         
         # Plot best mean reward line
-        ax1.axhline(y=best_mean_reward, color='green', linestyle='--', 
+        ax1.axhline(y=best_mean_reward, color='green', linestyle='--',
                    linewidth=2, label=f'Best Mean Reward: {best_mean_reward:.2f}')
     
     ax1.set_xlabel('Time Steps (x 1000)', fontsize=12)
@@ -423,7 +424,7 @@ def plot_learning_curves(results, n_episodes=100):
     ax1.grid(True, alpha=0.3)
     
     # Format x-axis to show in thousands
-    ax1.ticklabel_format(axis='x', style='scientific', scilimits=(0,0))
+    ax1.ticklabel_format(axis='x', style='scientific', scilimits=(0, 0))
     
     # Plot 2: Training loss
     ax2 = axes[1]
@@ -434,7 +435,7 @@ def plot_learning_curves(results, n_episodes=100):
         ax2.set_ylabel('Loss', fontsize=12)
         ax2.set_title('Training Loss', fontsize=14)
         ax2.grid(True, alpha=0.3)
-        ax2.ticklabel_format(axis='x', style='scientific', scilimits=(0,0))
+        ax2.ticklabel_format(axis='x', style='scientific', scilimits=(0, 0))
     
     plt.tight_layout()
     plt.savefig('dqn_pong_learning_curves.png', dpi=300, bbox_inches='tight')
@@ -501,13 +502,22 @@ if __name__ == "__main__":
     training_steps = 2500000
     
     print(f"\nStarting training with {training_steps:,} steps...")
-
     
     # Train agent
     results = train_dqn(total_steps=training_steps, max_steps_per_episode=10000)
     print(" Training Complete!")
     print(f"Best Mean Reward (100 ep): {results['best_mean_reward']:.2f}")
     print(f"Total Episodes: {len(results['episode_rewards'])}")
+    
+    # Save results to a .npz file
+    np.savez('dqn_pong_results.npz',
+             episode_rewards=results['episode_rewards'],
+             episode_lengths=results['episode_lengths'],
+             losses=results['losses'],
+             mean_rewards=results['mean_rewards'],
+             best_mean_reward=results['best_mean_reward'],
+             total_steps=results['total_steps'])
+    print("\nResults saved to 'dqn_pong_results.npz'")
     
     # Plot learning curves
     plot_learning_curves(results, n_episodes=100)
