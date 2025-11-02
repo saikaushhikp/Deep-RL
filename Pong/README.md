@@ -59,4 +59,4 @@ Parameters : (lr, gamma) = (0.0001, 0.99), total training steps = 2.5M steps + R
 
 # Part(c)
 
-## Unfortunate training contraints couldn't be met for doing part(c) as adviced by sir as well
+## Unfortunate training contraints couldn't be met for doing part(c) & as adviced by sir in the Problem-statement
