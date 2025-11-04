@@ -27,7 +27,7 @@ During the 1st run, the agent was trained for 1M steps and it's performance was 
 
 ![1Msteps DQN Agent](part(b)/dqn_pong_learning_curves_1M.png)
 <center>
-Figure 2: Learning curve of DQN agent trained for 1M steps in Pong.  <br>
+Figure-2: Learning curve of DQN agent trained for 1M steps in Pong.  <br>
 Avg-return curve(top), Training loss curve(bottom).
 </center>
 
