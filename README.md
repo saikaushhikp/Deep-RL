@@ -20,7 +20,7 @@ Clone Repo:
 ```bash
 git clone https://github.com/saikaushhikp/Deep-RL.git
 ```
-Commands for package installations (might differ from system to system and Python version, so don't hesitate to ask `ChatGPT` for your correct installation method) ;)  **(^_^)** :
+Commands for package installations (might differ from system to system and Python version, so don't hesitate to ask `ChatGPT` for your correct installation method)         **(^_^)** :
 - Create and activate conda environment
 ```bash
 conda create -n rl-env python=3.10
