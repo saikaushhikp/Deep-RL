@@ -38,7 +38,7 @@ The issue here is, the training has been done, but the learning curves could not
 
 > So, the model was trained for anothe 0.1M steps(from 2.5M to 2.6M) to get the learning curves as shown below. The best mean reward until then was 7 for a running average for 10 episodes for a total of 40 new episodes. hence the learning curve for this 0.1M steps shown below is only for reference to show the improvement in performance after 2.5M steps.
 
-> To further evaluate the performance of the DQN agent, it was tested for 100 episodes and the rewards obtained are shown in the file [evaluation.txt](part(b)/evaluation.txt). The agent performs significantly better than the random agent, winning most of the episodes with positive rewards.  
+> To further evaluate the performance of the DQN agent, it was tested for 100 episodes and the rewards obtained are shown in the file [`evaluation.txt`](part(b)/evaluation.txt). The agent performs significantly better than the random agent, winning most of the episodes with positive rewards.  
 The final model results are saved @ [dqn_pong_results.npz](part(b)/dqn_pong_results.npz).
 
 Thus the trainined model performed good and can do better for many more training steps(to 8M to touch max reward almost as close as 21.0) starting from the latest checkpoint(of 2.5M steps)

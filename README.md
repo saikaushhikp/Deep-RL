@@ -20,7 +20,27 @@ Clone Repo:
 ```bash
 git clone https://github.com/saikaushhikp/Deep-RL.git
 ```
-Commands for package installations (might differ from system to system and Python version, so don't hesitate to ask `ChatGPT` for your correct installation method):
+Commands for package installations (might differ from system to system and Python version, so don't hesitate to ask `ChatGPT` for your correct installation method) ;)  **(^_^)** :
+- Create and activate conda environment
 ```bash
-# will be adding soon
+conda create -n rl-env python=3.10
+conda activate rl-env
+pip install --upgrade pip
+```
+- Install required packages(refer [`requirements.txt`](requirements.txt) for versions)
+```bash
+pip install numpy matplotlib gym torch torchvision opencv-python pygame
+pip install gymnasium
+pip install gymnasium[atari]
+pip install gymnasium[accept-rom-license]
+pip install ale-py autorom
+pip install swig
+```
+- For Box2D environments (LunarLander-v3), install Box2D:
+```bash
+python3 -m pip install box2d-py
+# if the above command gives error in code running, try:
+
+pip uninstall -y box2d-py
+pip install box2d
 ```
