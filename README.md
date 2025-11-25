@@ -2,7 +2,7 @@
 
 This repository contains implementations of **Deep Q-Network (DQN)** and **Policy Gradient (PG)** algorithms. The goal of this project is to apply these reinforcement learning techniques on various **OpenAI Gym environments** and analyse their performance, learning behaviour, and hyperparameter sensitivities.
 
-All tasks and requirements for Assignment 3, as specified in the assignment document (`Assignment-3.pdf`), have been fully accomplished.
+All tasks and requirements for Assignment 3, as specified in the assignment document ([`Assignment-3.pdf`](Assignment-3.pdf)), have been fully accomplished.
 
 This repo includes the completed code, generated plots, and analysis for:
 
